@@ -6,7 +6,7 @@ import styled from "styled-components";
 import Input from "../Input";
 import { ethers } from "ethers";
 import { DateTime } from "luxon";
-import useDeleteActiveContracts from "@/hooks/useDeleteActiveContracts";
+import deleteActiveContracts from "@/lib/deleteActiveContracts";
 
 const Form = styled.form`
   display: flex;
@@ -52,14 +52,14 @@ const WinDiv = styled.div`
   margin-bottom: 5px;
 `;
 
-interface GenericMoveProps {
+interface PlayerBMovesProps {
   stakedEthAmount: string;
   connectedAddress: `0x${string}` | undefined;
   rpsContract: ethers.Contract | undefined;
   resetState: () => void;
 }
 
-const GenericMove: React.FC<GenericMoveProps> = ({
+const PlayerBMoves: React.FC<PlayerBMovesProps> = ({
   stakedEthAmount,
   connectedAddress,
   rpsContract,
@@ -84,7 +84,7 @@ const GenericMove: React.FC<GenericMoveProps> = ({
       }
     };
     checkIfJ2Moved();
-  }, [loading]);
+  }, [loading, rpsContract]);
 
   const handlePlay = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +99,7 @@ const GenericMove: React.FC<GenericMoveProps> = ({
         setLoading(true);
         await rpsContract.play(moveValue, { value: stakedEthAmount });
         toast.success("Move successfully played!");
+        setj2Moved(true);
         setLoading(false);
       } catch (err) {
         console.log(err);
@@ -128,14 +129,18 @@ const GenericMove: React.FC<GenericMoveProps> = ({
 
         if (Number(timestampInSeconds) >= lastAction + timeoutConstant) {
           await rpsContract.j1Timeout();
-          await useDeleteActiveContracts(connectedAddress);
+          await deleteActiveContracts(connectedAddress);
           toast.success("You withdrew your staked ETH");
           setLoading(false);
           setWon(true);
           return;
         }
 
-        toast.error("Timeout has not been reached.");
+        toast.error(
+          `Timeout has not been reached. Please wait another ${Math.abs(
+            Number(timestampInSeconds) - (lastAction + timeoutConstant)
+          )} seconds`
+        );
         setLoading(false);
       } catch (err) {
         console.log(err);
@@ -204,4 +209,4 @@ const GenericMove: React.FC<GenericMoveProps> = ({
   );
 };
 
-export default GenericMove;
+export default PlayerBMoves;

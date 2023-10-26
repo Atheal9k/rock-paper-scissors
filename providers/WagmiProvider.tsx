@@ -43,7 +43,7 @@ const WagmiProvider: React.FC<WagmiProviderProps> = ({ children }) => {
       {wagmiConfig ? (
         <WagmiConfig config={wagmiConfig}>{children}</WagmiConfig>
       ) : (
-        children
+        <div>Loading...</div>
       )}
     </WagmiConfigContext.Provider>
   );

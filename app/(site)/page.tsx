@@ -61,9 +61,6 @@ const AccountInfo = styled.div`
 
 export default function Home() {
   const { isConfigReady } = useContext(WagmiConfigContext);
-  if (!isConfigReady) {
-    return <Loading />;
-  }
 
   const [contractActive, setContractActive] = useState(false);
   const [stakedEthAmount, setStakedEthAmount] = useState("0");
@@ -74,15 +71,14 @@ export default function Home() {
   const [connectedAddress, setConnectedAddress] = useState<`0x${string}`>();
 
   const { address, isConnected } = useAccount();
-
   const { connect, connectors, error, isLoading, pendingConnector } =
     useConnect();
   const { disconnect } = useDisconnect();
   const { data: userBalance } = useBalance({
     address: address,
   });
-
   const signer = useEthersSigner();
+
   const getIsContractActive = useCallback(async () => {
     const response = await axios.get(
       `/api/activeContracts?playerAddress=${address?.toLowerCase()}`
@@ -112,6 +108,10 @@ export default function Home() {
   useEffect(() => {
     initAddress();
   }, [initAddress]);
+
+  if (!isConfigReady) {
+    return <Loading />;
+  }
 
   const resetState = () => {
     setContractActive(false);

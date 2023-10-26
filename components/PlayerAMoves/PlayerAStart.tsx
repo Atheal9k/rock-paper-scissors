@@ -1,5 +1,5 @@
 "use client";
-import useDeployContracts from "@/hooks/useDeployContracts";
+import deployContracts from "@/lib/deployContracts";
 import { useEthersSigner } from "@/hooks/useEthersSigner";
 import { VALID_MOVES } from "../../constants/validMoves";
 import { useRef, useState } from "react";
@@ -43,12 +43,12 @@ const Option = styled.option`
   outline: none;
 `;
 
-interface PlayerAMoveProps {
+interface PlayerAStartProps {
   connectedAddress: `0x${string}` | undefined;
   getIsContractActive: () => void;
 }
 
-const PlayerAMove: React.FC<PlayerAMoveProps> = ({
+const PlayerAStart: React.FC<PlayerAStartProps> = ({
   connectedAddress,
   getIsContractActive,
 }) => {
@@ -88,12 +88,7 @@ const PlayerAMove: React.FC<PlayerAMoveProps> = ({
 
       if (signer) {
         setLoading(true);
-        await useDeployContracts(
-          signer,
-          ethAmount,
-          playerTwoAddress,
-          moveValue
-        );
+        await deployContracts(signer, ethAmount, playerTwoAddress, moveValue);
         getIsContractActive();
       }
       toast.success("Submitted!");
@@ -130,4 +125,4 @@ const PlayerAMove: React.FC<PlayerAMoveProps> = ({
   );
 };
 
-export default PlayerAMove;
+export default PlayerAStart;

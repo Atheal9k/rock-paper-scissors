@@ -6,7 +6,7 @@ import Input from "../Input";
 import { ethers } from "ethers";
 import axios from "axios";
 import { DateTime } from "luxon";
-import useDeleteActiveContracts from "@/hooks/useDeleteActiveContracts";
+import deleteActiveContracts from "@/lib/deleteActiveContracts";
 
 const Form = styled.form`
   display: flex;
@@ -23,14 +23,14 @@ const WinDiv = styled.div`
   margin-bottom: 5px;
 `;
 
-interface GenericMoveProps {
+interface PlayerAEndProps {
   stakedEthAmount: string;
   connectedAddress: `0x${string}` | undefined;
   rpsContract: ethers.Contract | undefined;
   resetState: () => void;
 }
 
-const GenericMove: React.FC<GenericMoveProps> = ({
+const PlayerAEnd: React.FC<PlayerAEndProps> = ({
   stakedEthAmount,
   connectedAddress,
   rpsContract,
@@ -61,7 +61,7 @@ const GenericMove: React.FC<GenericMoveProps> = ({
         const playerTwoMove = ethers.formatUnits(res, 0);
         const hasWon = await rpsContract.win(move, playerTwoMove);
         setWon(hasWon);
-        await useDeleteActiveContracts(connectedAddress);
+        await deleteActiveContracts(connectedAddress);
         toast.success("You have ended the game successfully!");
         setLoading(false);
         //resetState();
@@ -92,14 +92,18 @@ const GenericMove: React.FC<GenericMoveProps> = ({
         const timeoutConstant = Number(ethers.formatUnits(_timeoutConstant, 0));
         if (Number(timestampInSeconds) >= lastAction + timeoutConstant) {
           await rpsContract.j2Timeout();
-          await useDeleteActiveContracts(connectedAddress);
+          await deleteActiveContracts(connectedAddress);
           toast.success("You withdrew your staked ETH");
           setLoading(false);
           setWon(true);
           return;
         }
 
-        toast.error("Timeout has not been reached.");
+        toast.error(
+          `Timeout has not been reached. Please wait another ${Math.abs(
+            Number(timestampInSeconds) - (lastAction + timeoutConstant)
+          )} seconds`
+        );
         setLoading(false);
       } catch (err) {
         toast.error("Timeout cannot be called currently");
@@ -152,4 +156,4 @@ const GenericMove: React.FC<GenericMoveProps> = ({
   );
 };
 
-export default GenericMove;
+export default PlayerAEnd;

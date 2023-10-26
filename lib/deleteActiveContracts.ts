@@ -1,6 +1,6 @@
-import { supabase } from "../lib/superbaseClient";
+import { supabase } from "./superbaseClient";
 
-const useDeleteActiveContracts = async (
+const deleteActiveContracts = async (
   playerAddress: `0x${string}` | undefined
 ) => {
   if (playerAddress) {
@@ -17,4 +17,4 @@ const useDeleteActiveContracts = async (
   }
 };
 
-export default useDeleteActiveContracts;
+export default deleteActiveContracts;
