@@ -2,7 +2,6 @@ import { JsonRpcSigner, ethers } from "ethers";
 import { RPS_ABI, HASHER_ABI } from "../constants/abi/abis";
 import { RPS_BYTECODE } from "../constants/abi/bytecodes";
 import axios from "axios";
-import crypto from "crypto";
 import { generateRandomSalt } from "@/lib/generateRandomSalt";
 
 const useDeployContracts = async (
