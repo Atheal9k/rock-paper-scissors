@@ -1,12 +1,12 @@
 import { supabase } from "./superbaseClient";
 
-const deleteActiveContracts = async (
+const updateActiveContracts = async (
   playerAddress: `0x${string}` | undefined
 ) => {
   if (playerAddress) {
     const { error } = await supabase
       .from("active_contracts")
-      .delete()
+      .update({ ended: true })
       .or(
         `player_address.eq.${playerAddress
           .trim()
@@ -17,4 +17,4 @@ const deleteActiveContracts = async (
   }
 };
 
-export default deleteActiveContracts;
+export default updateActiveContracts;

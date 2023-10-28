@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     !salt
   )
     return NextResponse.json({ message: "Missing Data" });
-  console.log(contractAddress, playerOneAddress, playerTwoAddress, move, salt);
+
   const { error } = await supabase.from("active_contracts").insert({
     contract_address: contractAddress,
     player_address: playerOneAddress,
@@ -39,7 +39,8 @@ export async function GET(request: Request) {
         .toLowerCase()},player_two_address.eq.${playerAddress
         .trim()
         .toLowerCase()}`
-    );
+    )
+    .filter("ended", "eq", false);
 
   return NextResponse.json(data || { error });
 }

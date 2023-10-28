@@ -5,22 +5,20 @@ import styled from "styled-components";
 import Input from "../Input";
 import { ethers } from "ethers";
 import axios from "axios";
-import { DateTime } from "luxon";
-import deleteActiveContracts from "@/lib/deleteActiveContracts";
+import updateActiveContracts from "@/lib/updateActiveContracts";
+import {
+  useHasj2PlayedQuery,
+  useStakedEthQuery,
+  useTimeoutQuery,
+} from "@/hooks/useBlockchainQueries";
+import GameEndComponent from "../GameEndComponent";
+import calcTimeoutRemaining from "@/lib/calcTimeoutRemaining";
+import useGameStateStore from "@/hooks/useGameState";
 
 const Form = styled.form`
   display: flex;
   flex-direction: column;
   justify-content: center;
-`;
-
-const WinDiv = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 30px;
-  margin-top: 5px;
-  margin-bottom: 5px;
 `;
 
 interface PlayerAEndProps {
@@ -37,72 +35,63 @@ const PlayerAEnd: React.FC<PlayerAEndProps> = ({
   resetState,
 }) => {
   const [loading, setLoading] = useState(false);
-  const [won, setWon] = useState<boolean | null>(null);
 
   const formattedEthAmount = ethers.formatUnits(stakedEthAmount);
+  const { data: hasJ2Played } = useHasj2PlayedQuery(rpsContract);
+  const { data: currentStakedEthAmount } = useStakedEthQuery(rpsContract);
+  const { data: timeoutData } = useTimeoutQuery(rpsContract);
+
+  const gameStateStore = useGameStateStore();
 
   const handleSolve = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    //TODO: ADD Signature Auth so only owner can get salt
-    const response = await axios.get(
-      `/api/activeContracts?playerAddress=${connectedAddress}`
-    );
+    try {
+      const response = await axios.get(
+        `/api/activeContracts?playerAddress=${connectedAddress}`
+      );
 
-    const move = response.data[0].move;
-    const salt = response.data[0].salt;
+      const move = response?.data[0]?.move;
+      const salt = response?.data[0]?.salt;
 
-    if (rpsContract) {
-      try {
+      if (rpsContract && move && salt) {
         setLoading(true);
 
         await rpsContract.solve(move, salt);
-        const res = await rpsContract.c2();
-        const playerTwoMove = ethers.formatUnits(res, 0);
-        const hasWon = await rpsContract.win(move, playerTwoMove);
-        setWon(hasWon);
-        await deleteActiveContracts(connectedAddress);
+
+        gameStateStore.setGameIsEnding(true);
+
         toast.success("You have ended the game successfully!");
-        setLoading(false);
-        //resetState();
-      } catch (err) {
-        console.log(err);
-        toast.error("Transaction Reverted");
+
         setLoading(false);
       }
+    } catch (err) {
+      console.log(err);
+      toast.error("Transaction Reverted");
+      setLoading(false);
     }
   };
 
   const handleTimeout = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const now = DateTime.utc();
-    //@ts-ignore
-    const timestampInMilliseconds = now.ts;
-    const timestampInSeconds = Math.floor(timestampInMilliseconds / 1000);
-
     if (rpsContract) {
       try {
         setLoading(true);
         //Let player 1 take back funds
-        const _lastAction = await rpsContract.lastAction();
-        const _timeoutConstant = await rpsContract.TIMEOUT();
+        const timeRemaining = await calcTimeoutRemaining(rpsContract);
 
-        const lastAction = Number(ethers.formatUnits(_lastAction, 0));
-        const timeoutConstant = Number(ethers.formatUnits(_timeoutConstant, 0));
-        if (Number(timestampInSeconds) >= lastAction + timeoutConstant) {
+        if (timeRemaining === 0) {
           await rpsContract.j2Timeout();
-          await deleteActiveContracts(connectedAddress);
+          await updateActiveContracts(connectedAddress);
           toast.success("You withdrew your staked ETH");
           setLoading(false);
-          setWon(true);
+          gameStateStore.setGameTimedOut(true);
           return;
         }
 
         toast.error(
-          `Timeout has not been reached. Please wait another ${Math.abs(
-            Number(timestampInSeconds) - (lastAction + timeoutConstant)
-          )} seconds`
+          `Timeout has not been reached. Please wait another ${timeRemaining} seconds`
         );
         setLoading(false);
       } catch (err) {
@@ -112,46 +101,41 @@ const PlayerAEnd: React.FC<PlayerAEndProps> = ({
     }
   };
 
-  const winOrLose = () => {
-    if (won === null) {
-      return null;
-    }
-
-    if (won) {
-      return (
-        <WinDiv>
-          You Won {formattedEthAmount} ETH!
-          <Button onClick={resetState}>Go Home</Button>
-        </WinDiv>
-      );
-    }
-
-    if (won === false) {
-      return (
-        <WinDiv>
-          You Lost {formattedEthAmount} ETH
-          <Button onClick={resetState}>Go Home</Button>
-        </WinDiv>
-      );
-    }
-  };
-
   return (
     <Form>
-      {winOrLose()}
-      <Input
-        type="number"
-        placeholder={`Current Staked Eth: ${formattedEthAmount}`}
-        disabled={true}
+      <GameEndComponent
+        currentStakedEthAmount={currentStakedEthAmount}
+        formattedEthAmount={formattedEthAmount}
+        contractInstance={rpsContract}
+        connectedAddress={connectedAddress}
+        resetState={resetState}
       />
+      {!gameStateStore.gameEnded ? (
+        <>
+          {gameStateStore.timedOut ? null : gameStateStore.gameIsEnding ? (
+            <div>Please wait for the blockchain...</div>
+          ) : (
+            <>
+              <Input
+                type="number"
+                placeholder={`Current Staked Eth: ${formattedEthAmount}`}
+                disabled={true}
+              />
 
-      <Button onClick={handleSolve} disabled={loading}>
-        {loading ? "Please wait..." : "Solve"}
-      </Button>
-      <br />
-      <Button onClick={handleTimeout} disabled={loading}>
-        {loading ? "Please wait..." : "Timeout"}
-      </Button>
+              <Button onClick={handleSolve} disabled={loading || !hasJ2Played}>
+                {loading ? "Please wait..." : "Solve"}
+              </Button>
+              <br />
+              <Button
+                onClick={handleTimeout}
+                disabled={loading && timeoutData! > 0}
+              >
+                {loading ? "Please wait..." : `Timeout`}
+              </Button>
+            </>
+          )}
+        </>
+      ) : null}
     </Form>
   );
 };

@@ -4,6 +4,7 @@ import { createContext, useEffect, useState } from "react";
 import { WagmiConfig, sepolia, createConfig, configureChains } from "wagmi";
 import { publicProvider } from "wagmi/providers/public";
 import { MetaMaskConnector } from "wagmi/connectors/metaMask";
+import { alchemyProvider } from "@wagmi/core/providers/alchemy";
 
 interface WagmiProviderProps {
   children: React.ReactNode;
@@ -16,14 +17,15 @@ export const WagmiConfigContext = createContext({
 
 const WagmiProvider: React.FC<WagmiProviderProps> = ({ children }) => {
   const projectId = process.env.WAGMI_PROJECT_ID || undefined;
+  const alchemyKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || "";
 
   const [wagmiConfig, setWagmiConfig] = useState<any>(null);
   const [isConfigReady, setIsConfigReady] = useState(false);
   useEffect(() => {
-    if (true) {
+    if (alchemyKey) {
       const { chains, publicClient, webSocketPublicClient } = configureChains(
         [sepolia],
-        [publicProvider()]
+        [alchemyProvider({ apiKey: alchemyKey }), publicProvider()]
       );
 
       const config = createConfig({
@@ -36,7 +38,7 @@ const WagmiProvider: React.FC<WagmiProviderProps> = ({ children }) => {
       setWagmiConfig(config);
       setIsConfigReady(true);
     }
-  }, [projectId]);
+  }, [projectId, alchemyKey]);
 
   return (
     <WagmiConfigContext.Provider value={{ isConfigReady, setIsConfigReady }}>

@@ -2,7 +2,6 @@ import { JsonRpcSigner, ethers } from "ethers";
 import { RPS_ABI, HASHER_ABI } from "../constants/abi/abis";
 import { RPS_BYTECODE } from "../constants/abi/bytecodes";
 import axios from "axios";
-import { generateRandomSalt } from "@/lib/generateRandomSalt";
 
 const useDeployContracts = async (
   signer: JsonRpcSigner,
@@ -12,9 +11,11 @@ const useDeployContracts = async (
 ) => {
   const _j2 = playerTwoAddress;
   const move = playerOneMove;
-  const randomSalt = generateRandomSalt();
 
   try {
+    const salt = await axios.get("/api/salt");
+    const randomSalt = salt.data.salt;
+
     const hasherAddress = "0xE6436158104f41a55a7f0F04E4EE9D9a0A3e3924";
     const hasherInstance = new ethers.Contract(
       hasherAddress,

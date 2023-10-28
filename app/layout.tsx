@@ -5,6 +5,8 @@ import "./globals.css";
 import ToasterProvider from "@/providers/ToasterProvider";
 import WagmiProvider from "@/providers/WagmiProvider";
 import RadixThemeProvider from "@/providers/RadixThemeProvider";
+import BlockchainPollingProvider from "@/providers/BlockchainPollingProvider";
+import QueryProvider from "@/providers/QueryProvider";
 
 const font = Figtree({ subsets: ["latin"] });
 
@@ -23,7 +25,12 @@ export default function RootLayout({
       <body className={font.className}>
         <RadixThemeProvider>
           <ToasterProvider />
-          <WagmiProvider>{children}</WagmiProvider>
+          <QueryProvider>
+            <WagmiProvider>
+              <BlockchainPollingProvider />
+              {children}
+            </WagmiProvider>
+          </QueryProvider>
         </RadixThemeProvider>
       </body>
     </html>

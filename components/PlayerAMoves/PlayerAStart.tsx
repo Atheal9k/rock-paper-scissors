@@ -2,11 +2,12 @@
 import deployContracts from "@/lib/deployContracts";
 import { useEthersSigner } from "@/hooks/useEthersSigner";
 import { VALID_MOVES } from "../../constants/validMoves";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import Button from "../Button";
 import Input from "../Input";
 import styled from "styled-components";
+import { useContractActiveQuery } from "../../hooks/useBlockchainQueries";
 
 const Form = styled.form`
   display: flex;
@@ -60,6 +61,14 @@ const PlayerAStart: React.FC<PlayerAStartProps> = ({
   const ethAmountRef = useRef<HTMLInputElement>(null);
   const playerAddressRef = useRef<HTMLInputElement>(null);
 
+  const { data: blockChainIsActive } = useContractActiveQuery(connectedAddress);
+
+  useEffect(() => {
+    if (blockChainIsActive) {
+      getIsContractActive();
+    }
+  }, [blockChainIsActive]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -73,7 +82,7 @@ const PlayerAStart: React.FC<PlayerAStartProps> = ({
         return;
       }
 
-      if (Number(ethAmount) <= 0) {
+      if (Number(ethAmount) <= 0 && !isNaN(Number(ethAmount))) {
         toast.error("Please stake more than 0 Eth");
         return;
       }

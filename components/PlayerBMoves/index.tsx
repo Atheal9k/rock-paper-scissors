@@ -5,8 +5,15 @@ import toast from "react-hot-toast";
 import styled from "styled-components";
 import Input from "../Input";
 import { ethers } from "ethers";
-import { DateTime } from "luxon";
-import deleteActiveContracts from "@/lib/deleteActiveContracts";
+import {
+  useContractActiveQuery,
+  useHasj2PlayedQuery,
+  useStakedEthQuery,
+  useTimeoutQuery,
+} from "@/hooks/useBlockchainQueries";
+import GameEndComponent from "../GameEndComponent";
+import calcTimeoutRemaining from "@/lib/calcTimeoutRemaining";
+import useGameState from "@/hooks/useGameState";
 
 const Form = styled.form`
   display: flex;
@@ -43,20 +50,12 @@ const Option = styled.option`
   outline: none;
 `;
 
-const WinDiv = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 30px;
-  margin-top: 5px;
-  margin-bottom: 5px;
-`;
-
 interface PlayerBMovesProps {
   stakedEthAmount: string;
   connectedAddress: `0x${string}` | undefined;
   rpsContract: ethers.Contract | undefined;
   resetState: () => void;
+  getIsContractActive: () => void;
 }
 
 const PlayerBMoves: React.FC<PlayerBMovesProps> = ({
@@ -64,14 +63,24 @@ const PlayerBMoves: React.FC<PlayerBMovesProps> = ({
   connectedAddress,
   rpsContract,
   resetState,
+  getIsContractActive,
 }) => {
   const [loading, setLoading] = useState(false);
   const [j2Moved, setj2Moved] = useState(false);
-  const [won, setWon] = useState<boolean | null>(null);
 
   const moveRef = useRef<HTMLSelectElement>(null);
 
   const formattedEthAmount = ethers.formatUnits(stakedEthAmount);
+
+  const { data: blockChainIsActive } = useContractActiveQuery(connectedAddress);
+
+  const { data: timeoutData } = useTimeoutQuery(rpsContract);
+
+  const { data: currentStakedEthAmount } = useStakedEthQuery(rpsContract);
+
+  const { data: hasJ2Played } = useHasj2PlayedQuery(rpsContract);
+
+  const gameStateStore = useGameState();
 
   useEffect(() => {
     const checkIfJ2Moved = async () => {
@@ -86,6 +95,12 @@ const PlayerBMoves: React.FC<PlayerBMovesProps> = ({
     checkIfJ2Moved();
   }, [loading, rpsContract]);
 
+  useEffect(() => {
+    if (blockChainIsActive) {
+      getIsContractActive();
+    }
+  }, [blockChainIsActive]);
+
   const handlePlay = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -93,6 +108,11 @@ const PlayerBMoves: React.FC<PlayerBMovesProps> = ({
       const moveValue = Number(moveRef.current.value);
       if (moveValue <= 0) {
         toast.error("Please select a move to play");
+        return;
+      }
+
+      if (Number(stakedEthAmount) <= 0) {
+        toast.error("Staked Eth Amount is currently 0. Call Timeout");
         return;
       }
       try {
@@ -112,34 +132,23 @@ const PlayerBMoves: React.FC<PlayerBMovesProps> = ({
   const handleTimeout = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const now = DateTime.utc();
-    //@ts-ignore
-    const timestampInMilliseconds = now.ts;
-    const timestampInSeconds = Math.floor(timestampInMilliseconds / 1000);
-
     if (rpsContract) {
       try {
         setLoading(true);
+
         //Let player 2 take back funds
-        const _lastAction = await rpsContract.lastAction();
-        const _timeoutConstant = await rpsContract.TIMEOUT();
+        const timeRemaining = await calcTimeoutRemaining(rpsContract);
 
-        const lastAction = Number(ethers.formatUnits(_lastAction, 0));
-        const timeoutConstant = Number(ethers.formatUnits(_timeoutConstant, 0));
-
-        if (Number(timestampInSeconds) >= lastAction + timeoutConstant) {
+        if (timeRemaining === 0) {
           await rpsContract.j1Timeout();
-          await deleteActiveContracts(connectedAddress);
           toast.success("You withdrew your staked ETH");
           setLoading(false);
-          setWon(true);
+          gameStateStore.setGameTimedOut(true);
           return;
         }
 
         toast.error(
-          `Timeout has not been reached. Please wait another ${Math.abs(
-            Number(timestampInSeconds) - (lastAction + timeoutConstant)
-          )} seconds`
+          `Timeout has not been reached. Please wait another ${timeRemaining} seconds`
         );
         setLoading(false);
       } catch (err) {
@@ -150,61 +159,51 @@ const PlayerBMoves: React.FC<PlayerBMovesProps> = ({
     }
   };
 
-  const winOrLose = () => {
-    if (won === null) {
-      return null;
-    }
-
-    if (won) {
-      return (
-        <WinDiv>
-          You Won {formattedEthAmount} ETH!
-          <Button onClick={resetState}>Go Home</Button>
-        </WinDiv>
-      );
-    }
-
-    if (won === false) {
-      return (
-        <WinDiv>
-          You Lost {formattedEthAmount} ETH
-          <Button onClick={resetState}>Go Home</Button>
-        </WinDiv>
-      );
-    }
-  };
-
   return (
     <Form>
-      {winOrLose()}
-      {j2Moved ? null : (
-        <SelectWrapper>
-          <select name="moves" id="moves" ref={moveRef}>
-            {VALID_MOVES.map((move, index) => (
-              <Option value={index} key={move.name}>
-                {move.name}
-              </Option>
-            ))}
-          </select>
-        </SelectWrapper>
-      )}
-
-      <Input
-        type="number"
-        placeholder={`Current Staked Eth: ${formattedEthAmount}`}
-        disabled={true}
+      <GameEndComponent
+        currentStakedEthAmount={currentStakedEthAmount}
+        formattedEthAmount={formattedEthAmount}
+        contractInstance={rpsContract}
+        connectedAddress={connectedAddress}
+        resetState={resetState}
       />
 
-      {j2Moved ? null : (
-        <Button onClick={handlePlay} disabled={loading}>
-          {loading ? "Please wait..." : "Play"}
-        </Button>
-      )}
+      {gameStateStore.timedOut || gameStateStore.gameEnded === true ? null : (
+        <>
+          {hasJ2Played || j2Moved ? null : (
+            <SelectWrapper>
+              <select name="moves" id="moves" ref={moveRef}>
+                {VALID_MOVES.map((move, index) => (
+                  <Option value={index} key={move.name}>
+                    {move.name}
+                  </Option>
+                ))}
+              </select>
+            </SelectWrapper>
+          )}
 
-      <br />
-      <Button onClick={handleTimeout} disabled={loading}>
-        {loading ? "Please wait..." : "Timeout"}
-      </Button>
+          <Input
+            type="number"
+            placeholder={`Current Staked Eth: ${formattedEthAmount}`}
+            disabled={true}
+          />
+
+          {hasJ2Played || j2Moved ? null : (
+            <Button onClick={handlePlay} disabled={loading}>
+              {loading ? "Please wait..." : "Play"}
+            </Button>
+          )}
+
+          <br />
+          <Button
+            onClick={handleTimeout}
+            disabled={(loading && timeoutData! > 0) || hasJ2Played === false}
+          >
+            {loading ? "Please wait..." : `Timeout`}
+          </Button>
+        </>
+      )}
     </Form>
   );
 };

@@ -14,6 +14,7 @@ import PlayerBMoves from "@/components/PlayerBMoves";
 import { shortenAddress } from "@/lib/shortenAddress";
 
 import axios from "axios";
+import useGameState from "@/hooks/useGameState";
 
 export const revalidate = 0;
 
@@ -79,6 +80,8 @@ export default function Home() {
   });
   const signer = useEthersSigner();
 
+  const gameStateStore = useGameState();
+
   const getIsContractActive = useCallback(async () => {
     const response = await axios.get(
       `/api/activeContracts?playerAddress=${address?.toLowerCase()}`
@@ -87,9 +90,11 @@ export default function Home() {
     if (response.data.length > 0) {
       setContractActive(true);
       const contractAddres = response.data[0].contract_address;
+      gameStateStore.setContractAddress(contractAddres);
       const rpsInstance = new ethers.Contract(contractAddres, RPS_ABI, signer);
       setRpsContract(rpsInstance);
-      setStakedEthAmount(await rpsInstance.stake());
+      const stake = await rpsInstance.stake();
+      setStakedEthAmount(stake);
 
       setPlayerTwoAddress(response.data[0].player_two_address);
     }
@@ -118,6 +123,11 @@ export default function Home() {
     setStakedEthAmount("0");
     setPlayerTwoAddress(null);
     setRpsContract(undefined);
+    gameStateStore.setGameTimedOut(false);
+    gameStateStore.setGameIsEnding(false);
+    gameStateStore.setGameEnded(false);
+    gameStateStore.setWinnerAddress(undefined);
+    gameStateStore.setContractAddress(undefined);
   };
 
   const getComponentToRender = () => {
@@ -149,6 +159,7 @@ export default function Home() {
           connectedAddress={address}
           rpsContract={rpsContract}
           resetState={resetState}
+          getIsContractActive={getIsContractActive}
         />
       );
     }
